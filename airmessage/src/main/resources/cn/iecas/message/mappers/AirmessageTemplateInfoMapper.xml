@@ -1,0 +1,228 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.iecas.message.mappers.AirmessageTemplateInfoMapper">
+
+    <!-- 通知消息表与通知实例表：一对多查询对应关系 -->
+    <resultMap id="messageInfoMap" type="cn.iecas.message.domain.AirmessageTemplateInfo">
+        <id property="id" column="id"/>
+        <result property="serviceId" column="service_id"/>
+        <result property="sourceUserId" column="source_user_id"/>
+        <result property="notificationLevel" column="notification_level"/>
+        <result property="notificationType" column="notification_type"/>
+        <result property="notificationTitle" column="notification_title"/>
+        <result property="notificationContent" column="notification_content"/>
+        <result property="targetUserLevel" column="target_user_level"/>
+        <result property="targetUserId" column="target_user_id"/>
+        <result property="createTime" column="create_time"/>
+        <result property="invalidatedTime" column="invalidated_time"/>
+        <result property="notificationLevelDescrip" column="level_descrip"/>
+        <result property="pulledOut" column="pulledout_num"/>
+        <result property="readedNum" column="readed_num"/>
+        <result property="deletedNum" column="deletedNum"/>
+        <result property="msgTotal" column="msg_total"/>
+        <result property="startTime" column="start_time"/>
+        <!--<collection property="AirMessageInstanceInfos" ofType="java.util.List" column="id" select="cn.iecas.message.mappers.AirMessageInstanceInfosMapper.getExampleInfoById">
+            <id property="id" column="id"/>
+            <result property="userId" column="user_id"/>
+            <result property="messageId" column="message_id"/>
+            <result property="pullTime" column="pull_time"/>
+            <result property="read" column="read"/>
+            <result property="deleted" column="deleted"/>
+        </collection>-->
+        <association property="AirMessageInstanceInfo" javaType="AirMessageInstanceInfo" column="id">
+            <id property="id" column="id"/>
+            <result property="userId" column="user_id"/>
+            <result property="messageId" column="message_id"/>
+            <result property="pullTime" column="pull_time"/>
+            <result property="read" column="read"/>
+            <result property="deleted" column="deleted"/>
+        </association>
+    </resultMap>
+
+    <!-- 获取所有消息以及统计信息 -->
+    <select id="getMessageAndstatis" resultMap="messageInfoMap" parameterType="SearchParams">
+        SELECT
+            ati.*,
+            COUNT(aii.message_id) AS pulledout_num,
+            COUNT(
+                CASE
+                    WHEN aii."read" IS TRUE
+                        THEN
+                            1
+                        ELSE
+                            NULL
+                    END
+            ) AS readed_num,
+            COUNT(
+                CASE
+                    WHEN aii.deleted IS TRUE
+                        THEN
+                            1
+                        ELSE
+                            NULL
+                    END
+            ) AS deleted_num
+        FROM
+        airmessage_template_info AS ati LEFT JOIN airmessage_instance_info AS aii ON ati."id" = aii.message_id
+        <if test="params!=null">
+            <where>
+                <if test="params.service_id!=null and params.service_id!=0">
+                    service_id = #{params.service_id}
+                </if>
+                <if test="params.source_user_id!=null and params.source_user_id!=0">
+                    AND source_user_id = #{params.source_user_id}
+                </if>
+                <if test="params.notification_level!=null and params.notification_level>0">
+                    AND notification_level = #{params.notification_level}
+                </if>
+                <if test="params.notification_type!=null and params.notification_type!=''">
+                    AND notification_type LIKE concat('%', CAST(#{params.notification_type} AS VARCHAR), '%')
+                </if>
+                <if test="params.notification_title!=null and params.notification_title!=''">
+                    AND notification_title LIKE concat('%', CAST(#{params.notification_title} AS VARCHAR), '%')
+                </if>
+                <if test="params.notification_content!=null and params.notification_content!=''">
+                    AND notification_content LIKE concat('%', CAST(#{params.notification_content} AS VARCHAR), '%')
+                </if>
+                <if test="params.proclamation">
+                    AND proclamation IS TRUE
+                </if>
+            </where>
+        </if>
+        GROUP BY ati."id"
+        ORDER BY ati.notification_level desc
+        <if test="params!=null">
+            <if test="params.orders!=null">
+                <foreach collection="params.orders" item="item" separator=" ">
+                    ,ati.${item}
+                </foreach>
+            </if>
+        </if>
+    </select>
+
+    <!-- 获取全部消息，并拉取通知实例信息 -->
+    <select id="getAllMessageInfo" resultMap="messageInfoMap">
+        SELECT
+            *
+        FROM
+            airmessage_template_info
+    </select>
+
+    <!-- 根据消息Id获取消息详情信息 -->
+    <select id="getMessageInfoById" resultMap="messageInfoMap">
+        SELECT
+            *
+        FROM
+            airmessage_template_info
+        WHERE
+            id = #{messageId}
+        ;
+    </select>
+
+    <!-- 创建新的消息通知 -->
+    <insert id="createNewMessageExample" parameterType="AirmessageTemplateInfo">
+        INSERT INTO
+            airmessage_template_info(service_id, source_user_id, notification_level, notification_type, notification_title, notification_content, target_user_level, target_user_id, create_time, invalidated_time, proclamation )
+        VALUES
+            (#{serviceId},#{sourceUserId},#{notificationLevel},#{notificationType},#{notificationTitle},#{notificationContent},#{targetUserLevel},#{targetUserId},#{createTime},#{invalidatedTime},#{proclamation});
+    </insert>
+
+    <!-- 获取最新的消息 -->
+    <select id="getLatestMessageByTargetUserId" resultMap="messageInfoMap" parameterType="AirmessageTemplateInfo">
+        SELECT * FROM airmessage_template_info WHERE target_user_id = #{targetUserId} ORDER BY create_time DESC LIMIT 1;
+    </select>
+
+    <!-- 根据id删除消息 -->
+    <delete id="removeMessageById" parameterType="java.lang.Integer">
+        DELETE FROM airmessage_template_info WHERE "id" = #{id};
+    </delete>
+
+    <!-- 根据ID更新通知以及通知实例 -->
+    <update id="updateMessageByMessageId" parameterType="AirmessageTemplateInfo">
+        UPDATE
+            airmessage_template_info
+        <set>
+            <if test="serviceId!=null">service_id=#{serviceId},</if>
+            <if test="sourceUserId!=null">source_user_id=#{sourceUserId},</if>
+            <if test="notificationLevel!=null">notification_level=#{notificationLevel},</if>
+            <if test="notificationType!=null and notificationType!=''">notification_type=#{notificationType},</if>
+            <if test="notificationTitle!=null">notification_title=#{notificationTitle},</if>
+            <if test="notificationContent!=null">notification_content=#{notificationContent},</if>
+            <if test="targetUserLevel!=null and targetUserLevel!=''">target_user_level=#{targetUserLevel},</if>
+            <if test="targetUserId!=null">target_user_id=#{targetUserId},</if>
+            <if test="createTime!=null">create_time=#{createTime},</if>
+            <if test="invalidatedTime!=null">invalidated_time=#{invalidatedTime}</if>
+        </set>
+        WHERE
+            "id"=#{id}
+    </update>
+
+    <!-- 获取所有消息统计信息 -->
+    <select id="getAllMessageInfoStatis" resultType="airmessageTemplateInfoStatis" parameterType="SearchParams">
+        SELECT
+            gb_ati.ntf_level AS notification_level,
+            CASE
+                WHEN gb_ati.ntf_level = 1 THEN
+                    '普通'
+                WHEN gb_ati.ntf_level = 2 THEN
+                    '警告'
+                WHEN gb_ati.ntf_level = 3 THEN
+                    '严重'
+                WHEN gb_ati.ntf_level = 4 THEN
+                    '致命'
+                ELSE
+                    '其他'
+                END AS notification_type,
+            COUNT(gb_ati.ntf_level) AS msg_total,
+            SUM(gb_ati.pulledout_num) AS pulledout_num,
+            SUM(gb_ati.readed_num) AS readed_num,
+            SUM(gb_ati.deleted_num) AS deleted_num
+        FROM
+            (
+                SELECT
+                    ati."id" AS gb_id,
+                    ati.notification_level AS ntf_level,
+                    COUNT ( aii.message_id ) AS pulledout_num,
+                    COUNT ( CASE WHEN aii."read" IS TRUE THEN 1 ELSE NULL END ) AS readed_num,
+                    COUNT ( CASE WHEN aii.deleted IS TRUE THEN 1 ELSE NULL END ) AS deleted_num
+                FROM
+                    airmessage_template_info AS ati
+                        LEFT JOIN airmessage_instance_info AS aii ON ati."id" = aii.message_id
+                <where>
+                    <choose>
+                        <when test="params.startTime!=null and params.endTime!=null">
+                            ati.create_time &gt;= #{params.startTime} AND ati.create_time &lt;= #{params.endTime}
+                        </when>
+                        <when test="params.startTime!=null">
+                            ati.create_time &gt;= #{params.startTime}
+                        </when>
+                        <when test="params.endTime!=null">
+                            ati.create_time &lt;= #{params.endTime}
+                        </when>
+                    </choose>
+                </where>
+                GROUP BY
+                    ati."id"
+            ) AS gb_ati
+        GROUP BY
+            gb_ati.ntf_level
+    </select>
+
+    <!-- 获取所有过期消息 -->
+    <select id="getInvalidMessage" resultMap="messageInfoMap">
+        SELECT
+            *
+        FROM
+            airmessage_template_info
+        WHERE
+            invalidated_time &lt; CURRENT_TIMESTAMP ( 0 ) :: TIMESTAMP WITHOUT TIME ZONE
+    </select>
+
+    <!-- 获取所有消息数量 -->
+    <select id="getMessageNums" resultType="java.lang.Integer">
+        SELECT
+            COUNT(*)
+        FROM
+            airmessage_template_info
+    </select>
+</mapper>

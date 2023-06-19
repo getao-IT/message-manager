@@ -1,0 +1,25 @@
+version: '2'  
+
+networks:
+  airMessage-network:
+   ipam:
+     config:
+       - subnet: 172.166.0.0/16
+         gateway: 172.166.0.1
+services:
+  java-message:
+    image: www.registry.cyber.ai/airproject/geoai_service:v7.0
+    ports: 
+      - "31161:8090"
+      - "15055:15056"
+    working_dir: /home/code
+    volumes:
+      - /mnt/sdb/home/iecas/lishuoke/airplatform-v2.0/AirMessage/app:/home/code/
+      - /mnt/mfs/data:/home/data/
+      - /mnt/mfs/data:/home/lab/data
+      - /mnt/sdb/home/iecas/lishuoke/airplatform-v2.0/AirMessage/app/log:/home/code/logs
+    command: java -jar -agentlib:jdwp=transport=dt_socket,suspend=n,server=y,address=15056 /home/code/airmessage-1.0-SNAPSHOT.jar
+    restart: always
+    tty: true
+    networks:
+      - airMessage-network

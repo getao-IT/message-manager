@@ -1,0 +1,105 @@
+#请求路径端口
+server:
+  servlet:
+    context-path: /api/v1
+  port: 8090
+---
+
+#数据源配置
+spring:
+  thymeleaf:
+    cache: false
+  mvc:
+    hiddenmethod:
+      filter:
+        enabled: true
+  servlet:
+    multipart:
+      # 单个文件的最大值
+      max-file-size: 2GB
+      # 上传文件总的最大值
+      max-request-size: 10GB
+
+  datasource:
+    username: iecas
+    password: 123456
+    url: jdbc:postgresql://10.1.98.26:32189/geodl_iecas?useSSL=false&useUnicode=true&characterEncoding=utf8
+    driver-class-name: org.postgresql.Driver
+  aop:
+    proxy-target-class: true
+
+# 初始化数据库
+database:
+  dbName: geodl_iecas
+  tables:
+    - airmessage_template_info
+    - airmessage_instance_info
+
+# 分页配置
+#pagehelper:
+#  helper-dialect: postgresql
+#  reasonable: true
+#  support-methods-arguments: true
+#  params: count=countSql
+---
+
+# mybatis-plus
+mybatis-plus:
+  configuration:
+    # 自动驼峰命名
+    map-underscore-to-camel-case: true
+    # 配置控制台打印日志Debug
+    logging:
+      level:
+        cn.iecas.message.mappers: debug
+    debug: true
+    # 配置sql控制台输出
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: input
+      update-strategy: not_null
+  # 配置Mapper映射文件
+  mapper-locations: classpath:*.xml
+  # 配置bao别名访问
+  type-aliases-package: cn.iecas.message.domain
+---
+
+api:
+  user:
+    get-user-info: http://192.168.2.156:31151/api/v1/users/get
+
+# Jackson配置
+spring:
+  jackson:
+    # 日期格式化
+    date-format: yyyy-MM-dd HH:mm:ss
+---
+
+dir:
+  rootPath: /home/code
+
+auth:
+  enabled: true
+  user-info-url: http://192.168.2.156:31151/api/v1/users/token_check
+  ignore-url-list:
+    - /api/v1/swagger-ui.html
+    - /api/v1/webjars/**
+    - /api/v1/swagger-resources/**
+    - /api/v1/v2/**
+---
+
+# 定时任务配置，每周一凌晨0点清理过期消息数据
+configtask:
+  cron: 0 0 0 ? * MON
+
+
+# 远程接口服务
+remote:
+  users:
+    url: http://192.168.2.156:31151/api/v1/users/get
+
+
+
+
+

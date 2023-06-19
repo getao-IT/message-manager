@@ -1,0 +1,241 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.iecas.message.mappers.AirmessageInstanceInfoMapper">
+
+    <!-- 通知消息表与通知实例表 -->
+    <resultMap id="AirMessageInstanceInfosMap" type="cn.iecas.message.domain.AirmessageInstanceInfo">
+        <id property="id" column="id"/>
+        <result property="userId" column="user_id"/>
+        <result property="messageId" column="message_id"/>
+        <result property="pullTime" column="pull_time"/>
+        <result property="read" column="read"/>
+        <result property="deleted" column="deleted"/>
+        <association property="messageInfo" column="message_id" javaType="AirmessageTemplateInfo">
+            <id property="id" column="miId"/>
+            <result property="serviceId" column="service_id"/>
+            <result property="sourceUserId" column="source_user_id"/>
+            <result property="notificationLevel" column="notification_level"/>
+            <result property="notificationType" column="notification_type"/>
+            <result property="notificationTitle" column="notification_title"/>
+            <result property="notificationContent" column="notification_content"/>
+            <result property="targetUserId" column="target_user_id"/>
+            <result property="createTime" column="create_time"/>
+            <result property="invalidatedTime" column="invalidated_time"/>
+            <result property="targetUserLevel" column="target_user_level"/>
+        </association>
+    </resultMap>
+
+    <!-- 获取全部消息，并拉取关联通知实例信息 -->
+    <select id="getExampleInfoById" resultMap="AirMessageInstanceInfosMap">
+        SELECT
+            *
+        FROM
+            airmessage_instance_info
+        WHERE
+            message_id = #{id}
+        ;
+    </select>
+
+    <!-- 获取全部消息实例，并拉取关联通知详情信息，适用于指定查询 -->
+    <select id="getAllExampleMessageInfo" resultMap="AirMessageInstanceInfosMap" parameterType="SearchParams">
+        SELECT
+            mei.*,mi.*,mi.id AS miId
+        FROM
+            airmessage_instance_info AS mei
+            LEFT JOIN
+            airmessage_template_info AS mi
+            ON
+            mei.message_id = mi.id
+            <if test="params!=null">
+                <where>
+                    mei.deleted IS FALSE
+                    <if test="#{params.is_admin.toString() == false.toString()}">
+                        <if test="params.userId!=null and params.userId!=0">
+                            AND user_id = #{params.userId}
+                        </if>
+                    </if>
+                    <if test="params.service_id!=null and params.service_id!=0">
+                        AND service_id = #{params.service_id}
+                    </if>
+                    <if test="params.source_user_id!=null and params.source_user_id!=0">
+                        AND source_user_id = #{params.source_user_id}
+                    </if>
+                    <if test="params.notification_level!=null and params.notification_level!=0">
+                        AND notification_level = #{params.notification_level}
+                    </if>
+                    <if test="params.notification_type!=null and params.notification_type!=''">
+                        AND notification_type LIKE concat('%', CAST(#{params.notification_type} AS VARCHAR), '%')
+                    </if>
+                    <if test="params.notification_title!=null and params.notification_title!=''">
+                        AND notification_title LIKE concat('%', CAST(#{params.notification_title} AS VARCHAR), '%')
+                    </if>
+                </where>
+            </if>
+        ORDER BY
+            mi.notification_level DESC,
+            mi.create_time DESC
+    </select>
+
+    <!-- 返回通知实例以及对应消息详情信息，适用于指定用户获取 -->
+    <select id="getInstanceByParams" resultMap="AirMessageInstanceInfosMap" parameterType="SearchParams">
+        SELECT
+        mei.*,mi.*,mi.id AS miId
+        FROM
+        airmessage_instance_info AS mei
+        LEFT JOIN
+        airmessage_template_info AS mi
+        ON
+        mei.message_id = mi.id
+        <if test="params!=null">
+            <where>
+                <if test="params.userId!=null and params.userId != 0">user_id = #{params.userId}</if>
+                <if test="params.service_id!=null and params.service_id!=0">
+                    AND service_id = #{params.service_id}
+                </if>
+                <if test="params.source_user_id!=null and params.source_user_id!=0">
+                    AND source_user_id = #{params.source_user_id}
+                </if>
+                <if test="params.notification_level!=null and params.notification_level!=0">
+                    AND notification_level = #{params.notification_level}
+                </if>
+                <if test="params.notification_type!=null and params.notification_type!=''">
+                    AND notification_type LIKE concat('%', CAST(#{params.notification_type} AS VARCHAR), '%')
+                </if>
+                <if test="params.notification_title!=null and params.notification_title!=''">
+                    AND notification_title LIKE concat('%', CAST(#{params.notification_title} AS VARCHAR), '%')
+                </if>
+            </where>
+        </if>
+        ORDER BY mi.notification_level DESC
+    </select>
+
+    <!-- 获取当前用户固定数量的最新未读实例 -->
+    <select id="getUserUnreadExample" resultMap="AirMessageInstanceInfosMap" parameterType="SearchParams">
+        SELECT
+        mei.*,mi.*,mi.id AS miId
+        FROM
+        airmessage_instance_info AS mei
+        LEFT JOIN
+        airmessage_template_info AS mi
+        ON
+        mei.message_id = mi.id
+        <where>
+            <if test="userId!=null and userId != -1">user_id = #{userId}</if>
+        AND mei."read" IS FALSE
+        AND mi."id" IS NOT NULL
+        </where>
+        ORDER BY
+            mi.notification_level DESC,
+            mi.create_time DESC
+    </select>
+
+    <!-- 创建新的消息实例 -->
+    <insert id="createNewMessageExample" parameterType="AirMessageInstanceInfo">
+        insert into
+            airmessage_instance_info(user_id,message_id, pull_time, "read", deleted)
+        VALUES
+            (#{userId},#{messageId},#{pullTime},#{read},#{deleted});
+    </insert>
+
+    <!-- 根据消息id删除消息实例 -->
+    <update id="removeInstanceByMessageId" parameterType="java.lang.Integer">
+        UPDATE airmessage_instance_info set deleted = TRUE WHERE message_id = #{messageId}
+    </update>
+
+    <!-- 根据实例ID更新实例阅读状态 -->
+    <update id="updateInstanceStatus" parameterType="java.lang.Integer">
+        UPDATE airmessage_instance_info SET "read" = TRUE WHERE message_id = #{instanceId} AND user_id = #{userId};
+    </update>
+
+    <!-- 根据实例ID删除实例（伪删除，实际是更改删除标识），如果存在删除状态为t的，同时清除掉 -->
+    <update id="removeInstanceById" parameterType="java.lang.Integer">
+        UPDATE airmessage_instance_info set deleted = TRUE WHERE "id" = #{instanceId}
+    </update>
+
+
+    <!-- 清除早于目标实例的，存在删除状态为t的，清除掉 -->
+    <delete id="removeOverdueInstance" parameterType="AirMessageInstanceInfo">
+        DELETE FROM
+            airmessage_instance_info
+        WHERE
+            pull_time &lt; (
+            SELECT
+                pull_time
+            FROM
+                airmessage_instance_info
+            WHERE
+                <choose>
+                    <when test="id!=null and id!=0">
+                        "id" = #{id}
+                    </when>
+                    <when test="messageId!=null and messageId!=0">
+                        message_id = #{messageId} ORDER BY pull_time DESC LIMIT 1
+                    </when>
+                </choose>
+
+        ) AND deleted IS TRUE
+    </delete>
+
+    <!-- 拉取消息实例 -->
+    <insert id="pullInstanceByUserId" parameterType="java.lang.Integer">
+        INSERT INTO
+            airmessage_instance_info ( user_id, message_id, pull_time, "read", deleted )
+            SELECT
+                *
+            FROM
+            (
+                SELECT
+                    target_user_id AS user_id,
+                    "id" AS message_id,
+                    CURRENT_TIMESTAMP ( 0 ) :: TIMESTAMP WITHOUT TIME ZONE AS pull_time,
+		            FALSE AS "read",
+		            FALSE AS deleted
+                FROM
+                    airmessage_template_info
+                WHERE
+                    target_user_id = #{userId}
+                    AND invalidated_time > CURRENT_TIMESTAMP ( 0 ) :: TIMESTAMP WITHOUT TIME ZONE
+        ) AS pull
+            WHERE
+                pull.message_id
+                NOT IN (
+                    SELECT
+                        message_id
+                    FROM
+                        airmessage_instance_info
+                    WHERE
+                        user_id = #{userId} )
+    </insert>
+
+    <!-- 拉取消息实例 -->
+    <insert id="pullInstanceByUserLevel" parameterType="SearchParams">
+        INSERT INTO
+            airmessage_instance_info ( user_id, message_id, pull_time, "read", deleted )
+        SELECT
+            *
+        FROM
+            (
+                SELECT
+                    #{params.userId} AS user_id,
+                    "id" AS message_id,
+                    CURRENT_TIMESTAMP ( 0 ) :: TIMESTAMP WITHOUT TIME ZONE AS pull_time,
+		            FALSE AS "read",
+		            FALSE AS deleted
+                FROM
+                    airmessage_template_info
+                WHERE
+                    (target_user_level LIKE concat('%', CAST(#{params.adminLevel} AS VARCHAR ), '%') or target_user_level LIKE concat('%', '-1', '%'))
+                    AND invalidated_time > CURRENT_TIMESTAMP ( 0 ) :: TIMESTAMP WITHOUT TIME ZONE
+            ) AS pull
+        WHERE
+                pull.message_id
+                NOT IN (
+                    SELECT
+                        message_id
+                    FROM
+                        airmessage_instance_info
+                    WHERE
+                        user_id = #{params.userId} )
+    </insert>
+
+</mapper>
